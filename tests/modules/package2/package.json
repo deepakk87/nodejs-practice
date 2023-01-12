@@ -1,0 +1,16 @@
+{
+  "name": "package2",
+  "version": "1.0.0",
+  "description": "This is a ES6 Module",
+  "type": "module",
+  "main": "derived.js",
+  "scripts": {
+    "start": "node derived.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "package1": "file:../package1"
+  }
+}

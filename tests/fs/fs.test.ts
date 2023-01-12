@@ -1,9 +1,21 @@
 import * as fs from 'fs';
-import { logger } from './utils';
+import { logger } from '../utils';
+
+function writeWithBackPressure(writeableStream: fs.WriteStream, chunk: Buffer) {
+  const hasMoreRoom = writeableStream.write(chunk);
+  if (hasMoreRoom) {
+    return Promise.resolve(null);
+  } else {
+    return new Promise((resolve) => {
+      writeableStream.once('drain', resolve);
+    });
+  }
+}
+
 async function findUsersTotalAmountPaid(
   fileName: string,
 ): Promise<Map<string, number>> {
-  const stream = fs.createReadStream(fileName, { highWaterMark: 128 });
+  const stream = fs.createReadStream(fileName, { highWaterMark: 8192 });
 
   const map = new Map<string, number>();
   const remainingBuffer = Buffer.alloc(32);
@@ -82,15 +94,19 @@ function generateRandomString(n: number, m: number): string {
 describe('Simple Test', () => {
   const mapExpected = new Map<string, number>();
   const fileName = 'records.bin'; // We are creating a binary file
-
+  /**
+   * R1 R2 ...  Rn
+   * R1 = [2bytes Length LE, [a,b,c], double store LE ]
+   */
   beforeAll(async () => {
-    const NUM_RECORDS = 1_000_000;
+    const NUM_RECORDS = 100_000;
     await fs.promises.unlink(fileName);
-    const buf = Buffer.alloc(32); // 32 bytes long buffer.
+
     // We are assuming this is good enough to store our variable length record
-    const stream = fs.createWriteStream(fileName, {highWaterMark: 4096});
+    const stream = fs.createWriteStream(fileName, { highWaterMark: 8192 });
     let totalBytesWritten = 0;
     for (let i = 0; i < NUM_RECORDS; i++) {
+      const buf = Buffer.alloc(32); // 32 bytes long buffer. We will multiple of these in memory
       const namePerson = generateRandomString(4, 5);
       const amountPaid = Math.random() * 120 + 1;
       let offset = 0;
@@ -108,9 +124,10 @@ describe('Simple Test', () => {
         mapExpected.set(namePerson, amountPaid);
       }
       totalBytesWritten += offset;
-      await new Promise((resolve) =>
-        stream.write(buf.slice(0, offset), resolve),
-      );
+      await writeWithBackPressure(stream, buf.slice(0, offset));
+      //await new Promise((resolve) =>
+      // stream.write(buf.slice(0, offset), resolve),
+      //);
     }
     logger.info(`total bytes Written ${totalBytesWritten}`);
     await new Promise((resolve) => {

@@ -24,7 +24,7 @@ describe('Child Processes Test', () => {
   });
 
   it('launch new process using execFileSync', async () => {
-    // This one uses shell to parse command line
+    // This one does not use shell to parse command line
     const listing = childProcess.execFileSync('node', ['--version']);
     // execFileSync does not so args need to passed as seperate args
     const version = listing.toString();
